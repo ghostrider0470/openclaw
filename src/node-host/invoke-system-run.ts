@@ -9,6 +9,7 @@ import {
   evaluateShellAllowlist,
   recordAllowlistUse,
   requiresExecApproval,
+  resolveAllowAlwaysPatterns,
   resolveExecApprovals,
   resolveSafeBins,
   type ExecAllowlistEntry,
@@ -18,47 +19,14 @@ import {
 } from "../infra/exec-approvals.js";
 import type { ExecHostRequest, ExecHostResponse, ExecHostRunResult } from "../infra/exec-host.js";
 import { getTrustedSafeBinDirs } from "../infra/exec-safe-bin-trust.js";
+import { sanitizeSystemRunEnvOverrides } from "../infra/host-env-security.js";
 import { resolveSystemRunCommand } from "../infra/system-run-command.js";
-
-type SystemRunParams = {
-  command: string[];
-  rawCommand?: string | null;
-  cwd?: string | null;
-  env?: Record<string, string>;
-  timeoutMs?: number | null;
-  needsScreenRecording?: boolean | null;
-  agentId?: string | null;
-  sessionKey?: string | null;
-  approved?: boolean | null;
-  approvalDecision?: string | null;
-  runId?: string | null;
-};
-
-type RunResult = {
-  exitCode?: number;
-  timedOut: boolean;
-  success: boolean;
-  stdout: string;
-  stderr: string;
-  error?: string | null;
-  truncated: boolean;
-};
-
-type ExecEventPayload = {
-  sessionKey: string;
-  runId: string;
-  host: string;
-  command?: string;
-  exitCode?: number;
-  timedOut?: boolean;
-  success?: boolean;
-  output?: string;
-  reason?: string;
-};
-
-export type SkillBinsProvider = {
-  current(force?: boolean): Promise<Set<string>>;
-};
+import type {
+  ExecEventPayload,
+  RunResult,
+  SkillBinsProvider,
+  SystemRunParams,
+} from "./invoke-types.js";
 
 type SystemRunInvokeResult = {
   ok: boolean;
@@ -142,7 +110,11 @@ export async function handleSystemRunInvoke(opts: {
   const autoAllowSkills = approvals.agent.autoAllowSkills;
   const sessionKey = opts.params.sessionKey?.trim() || "node";
   const runId = opts.params.runId?.trim() || crypto.randomUUID();
-  const env = opts.sanitizeEnv(opts.params.env ?? undefined);
+  const envOverrides = sanitizeSystemRunEnvOverrides({
+    overrides: opts.params.env ?? undefined,
+    shellWrapper: shellCommand !== null,
+  });
+  const env = opts.sanitizeEnv(envOverrides);
   const safeBins = resolveSafeBins(agentExec?.safeBins ?? cfg.tools?.exec?.safeBins);
   const trustedSafeBinDirs = getTrustedSafeBinDirs();
   const bins = autoAllowSkills ? await opts.skillBins.current() : new Set<string>();
@@ -204,7 +176,7 @@ export async function handleSystemRunInvoke(opts: {
       command: argv,
       rawCommand: rawCommand || shellCommand || null,
       cwd: opts.params.cwd ?? null,
-      env: opts.params.env ?? null,
+      env: envOverrides ?? null,
       timeoutMs: opts.params.timeoutMs ?? null,
       needsScreenRecording: opts.params.needsScreenRecording ?? null,
       agentId: agentId ?? null,
@@ -314,8 +286,13 @@ export async function handleSystemRunInvoke(opts: {
   }
   if (approvalDecision === "allow-always" && security === "allowlist") {
     if (analysisOk) {
-      for (const segment of segments) {
-        const pattern = segment.resolution?.resolvedPath ?? "";
+      const patterns = resolveAllowAlwaysPatterns({
+        segments,
+        cwd: opts.params.cwd ?? undefined,
+        env,
+        platform: process.platform,
+      });
+      for (const pattern of patterns) {
         if (pattern) {
           addAllowlistEntry(approvals.file, agentId, pattern);
         }
