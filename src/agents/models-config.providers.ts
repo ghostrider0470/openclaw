@@ -6,6 +6,8 @@ import {
   resolveCopilotApiToken,
 } from "../providers/github-copilot-token.js";
 import { ensureAuthProfileStore, listProfilesForProvider } from "./auth-profiles.js";
+import { discoverAzureAiModels } from "./azure-ai-discovery.js";
+import { AZURE_AI_MODEL_CATALOG, buildAzureAiModelDefinition } from "./azure-ai-models.js";
 import { discoverBedrockModels } from "./bedrock-discovery.js";
 import {
   buildBytePlusModelDefinition,
@@ -659,6 +661,15 @@ function buildTogetherProvider(): ProviderConfig {
   };
 }
 
+function buildAzureAiProvider(endpoint: string): ProviderConfig {
+  const baseUrl = `${endpoint.replace(/\/+$/, "")}/openai/v1`;
+  return {
+    baseUrl,
+    api: "openai-completions",
+    models: AZURE_AI_MODEL_CATALOG.map(buildAzureAiModelDefinition),
+  };
+}
+
 async function buildVllmProvider(params?: {
   baseUrl?: string;
   apiKey?: string;
@@ -889,6 +900,18 @@ export async function resolveImplicitProviders(params: {
     };
   }
 
+  const azureAiKey =
+    resolveEnvApiKeyVarName("azure-ai") ??
+    resolveApiKeyFromProfiles({ provider: "azure-ai", store: authStore });
+  if (azureAiKey) {
+    const azureEndpoint =
+      process.env.AZURE_AI_ENDPOINT?.trim() || "https://models.inference.ai.azure.com";
+    providers["azure-ai"] = {
+      ...buildAzureAiProvider(azureEndpoint),
+      apiKey: azureAiKey,
+    };
+  }
+
   const huggingfaceKey =
     resolveEnvApiKeyVarName("huggingface") ??
     resolveApiKeyFromProfiles({ provider: "huggingface", store: authStore });
@@ -1007,6 +1030,53 @@ export async function resolveImplicitBedrockProvider(params: {
     baseUrl: `https://bedrock-runtime.${region}.amazonaws.com`,
     api: "bedrock-converse-stream",
     auth: "aws-sdk",
+    models,
+  } satisfies ProviderConfig;
+}
+
+export async function resolveImplicitAzureAiProvider(params: {
+  agentDir: string;
+  config?: OpenClawConfig;
+  env?: NodeJS.ProcessEnv;
+}): Promise<ProviderConfig | null> {
+  const env = params.env ?? process.env;
+  const discoveryConfig = params.config?.models?.azureAiDiscovery;
+  const enabled = discoveryConfig?.enabled;
+  const hasApiKey = Boolean(env.AZURE_AI_API_KEY?.trim());
+  const authStore = ensureAuthProfileStore(params.agentDir, { allowKeychainPrompt: false });
+  const hasProfile = listProfilesForProvider(authStore, "azure-ai").length > 0;
+
+  if (enabled === false) {
+    return null;
+  }
+  if (enabled !== true && !hasApiKey && !hasProfile) {
+    return null;
+  }
+
+  const endpoint =
+    discoveryConfig?.endpoint?.trim() ||
+    env.AZURE_AI_ENDPOINT?.trim() ||
+    "https://models.inference.ai.azure.com";
+  const apiKey = env.AZURE_AI_API_KEY?.trim() ?? "";
+
+  if (!apiKey && !hasProfile) {
+    return null;
+  }
+
+  const models = await discoverAzureAiModels({
+    endpoint,
+    apiKey,
+    config: discoveryConfig,
+  });
+  if (models.length === 0) {
+    return null;
+  }
+
+  const baseUrl = `${endpoint.replace(/\/+$/, "")}/openai/v1`;
+  return {
+    baseUrl,
+    api: "openai-completions",
+    apiKey,
     models,
   } satisfies ProviderConfig;
 }

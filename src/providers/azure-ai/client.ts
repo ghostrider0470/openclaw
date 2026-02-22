@@ -1,5 +1,4 @@
-import fetch from "node-fetch";
-import { AzureAIModelConfig } from "./types";
+import { AzureAIModelConfig } from "./types.js";
 
 export async function azureAIChatCompletion(
   model: AzureAIModelConfig,
@@ -12,9 +11,9 @@ export async function azureAIChatCompletion(
       : `${model.endpoint}/openai/v1/chat/completions`;
 
   const maxTokens =
-    typeof opts?.maxTokens === "number" ? (opts.maxTokens as number) : (model.maxTokens ?? 2048);
+    typeof opts?.maxTokens === "number" ? opts.maxTokens : (model.maxTokens ?? 2048);
 
-  const temperature = typeof opts?.temperature === "number" ? (opts.temperature as number) : 0.7;
+  const temperature = typeof opts?.temperature === "number" ? opts.temperature : 0.7;
 
   const body: Record<string, unknown> = {
     messages,

@@ -322,6 +322,7 @@ export function resolveEnvApiKey(provider: string): EnvApiKeyResult | null {
     qianfan: "QIANFAN_API_KEY",
     ollama: "OLLAMA_API_KEY",
     vllm: "VLLM_API_KEY",
+    "azure-ai": "AZURE_AI_API_KEY",
   };
   const envVar = envMap[normalized];
   if (!envVar) {

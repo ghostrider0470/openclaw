@@ -81,11 +81,24 @@ export const BedrockDiscoverySchema = z
   .strict()
   .optional();
 
+export const AzureAiDiscoverySchema = z
+  .object({
+    enabled: z.boolean().optional(),
+    endpoint: z.string().optional(),
+    providerFilter: z.array(z.string()).optional(),
+    refreshInterval: z.number().int().nonnegative().optional(),
+    defaultContextWindow: z.number().int().positive().optional(),
+    defaultMaxTokens: z.number().int().positive().optional(),
+  })
+  .strict()
+  .optional();
+
 export const ModelsConfigSchema = z
   .object({
     mode: z.union([z.literal("merge"), z.literal("replace")]).optional(),
     providers: z.record(z.string(), ModelProviderSchema).optional(),
     bedrockDiscovery: BedrockDiscoverySchema,
+    azureAiDiscovery: AzureAiDiscoverySchema,
   })
   .strict()
   .optional();
@@ -165,7 +178,7 @@ export const MarkdownConfigSchema = z
   .strict()
   .optional();
 
-export const TtsProviderSchema = z.enum(["elevenlabs", "openai", "edge"]);
+export const TtsProviderSchema = z.enum(["elevenlabs", "openai", "edge", "azure"]);
 export const TtsModeSchema = z.enum(["final", "all"]);
 export const TtsAutoSchema = z.enum(["off", "always", "inbound", "tagged"]);
 export const TtsConfigSchema = z
@@ -213,6 +226,15 @@ export const TtsConfigSchema = z
     openai: z
       .object({
         apiKey: z.string().optional().register(sensitive),
+        model: z.string().optional(),
+        voice: z.string().optional(),
+      })
+      .strict()
+      .optional(),
+    azure: z
+      .object({
+        apiKey: z.string().optional().register(sensitive),
+        endpoint: z.string().optional(),
         model: z.string().optional(),
         voice: z.string().optional(),
       })

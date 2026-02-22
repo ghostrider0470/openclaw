@@ -1,4 +1,4 @@
-export type TtsProvider = "elevenlabs" | "openai" | "edge";
+export type TtsProvider = "elevenlabs" | "openai" | "edge" | "azure";
 
 export type TtsMode = "final" | "all";
 
@@ -56,6 +56,13 @@ export type TtsConfig = {
   /** OpenAI configuration. */
   openai?: {
     apiKey?: string;
+    model?: string;
+    voice?: string;
+  };
+  /** Azure AI Foundry TTS configuration. */
+  azure?: {
+    apiKey?: string;
+    endpoint?: string;
     model?: string;
     voice?: string;
   };

@@ -1,5 +1,5 @@
-import { azureAIChatCompletion } from "./client";
-import { AzureAIModelConfig } from "./types";
+import { azureAIChatCompletion } from "./client.js";
+import { AzureAIModelConfig } from "./types.js";
 
 export class AzureAIProvider {
   constructor(private model: AzureAIModelConfig) {}

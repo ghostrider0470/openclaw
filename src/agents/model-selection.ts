@@ -53,6 +53,9 @@ export function normalizeProviderId(provider: string): string {
   if (normalized === "bytedance" || normalized === "doubao") {
     return "volcengine";
   }
+  if (normalized === "azure" || normalized === "azureai" || normalized === "azure-ai-foundry") {
+    return "azure-ai";
+  }
   return normalized;
 }
 
